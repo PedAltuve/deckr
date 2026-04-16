@@ -1,51 +1,88 @@
 /*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
-
+Copyright © 2026 Pedro Altuve <pedaltuve@protonmail.com>
 */
 package cmd
 
 import (
-	"os"
+	"path/filepath"
 
+	"github.com/pedAltuve/deckr/internal/tools"
 	"github.com/spf13/cobra"
 )
 
+func NewRootCmd() *cobra.Command {
+	rootCmd := &cobra.Command{
+		Use:   "deckr",
+		Short: "Git-backed config deck manager",
+		Long:  "deckr manages config decks for tools like Neovim, tmux, Ghostty and so on",
+	}
 
+	dataDir := filepath.Join(".", ".deckr-dev")
 
-// rootCmd represents the base command when called without any subcommands
-var rootCmd = &cobra.Command{
-	Use:   "deckr",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+	svc := &tools.Service{
+		Paths:    tools.OSPaths{},
+		Registry: tools.NewFileRegistry(filepath.Join(dataDir, "registry")),
+		Backend:  tools.NewLocalBackend(filepath.Join(dataDir, "backend")),
+	}
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+	rootCmd.AddCommand(newInitCmd(svc))
+	rootCmd.AddCommand(newCreateCmd())
+	rootCmd.AddCommand(newSwitchCmd())
+	rootCmd.AddCommand(newDeleteCmd())
+	rootCmd.AddCommand(newCurrentCmd())
+	rootCmd.AddCommand(newListCmd())
+	rootCmd.AddCommand(newPushCmd())
+	rootCmd.AddCommand(newPullCmd())
+
+	return rootCmd
+
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
-func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
-		os.Exit(1)
+func newCreateCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "create <tool> <deck>",
+		Short: "Create a new deck for a tool",
 	}
 }
 
-func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.deckr.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+func newSwitchCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "switch <tool> <deck>",
+		Short: "Switch the active deck for a tool",
+	}
 }
 
+func newDeleteCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "delete <tool> <deck>",
+		Short: "Delete a deck",
+	}
+}
 
+func newCurrentCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "current <tool>",
+		Short: "Show the current deck for a tool",
+	}
+}
+
+func newListCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list [tool]",
+		Short: "List tools or decks",
+	}
+}
+
+func newPushCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "push <tool> [deck]",
+		Short: "Push a deck to its remote repository",
+	}
+}
+
+func newPullCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "pull <tool> [deck]",
+		Short: "Pull a deck from its remote repository",
+	}
+}
