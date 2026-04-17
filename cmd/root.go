@@ -4,27 +4,28 @@ Copyright © 2026 Pedro Altuve <pedaltuve@protonmail.com>
 package cmd
 
 import (
-	"path/filepath"
-
+	"fmt"
 	"github.com/pedAltuve/deckr/internal/tools"
 	"github.com/spf13/cobra"
+	"os"
+	"path/filepath"
 )
 
-func NewRootCmd() *cobra.Command {
+func NewRootCmd() (*cobra.Command, error) {
 	rootCmd := &cobra.Command{
 		Use:   "deckr",
 		Short: "Git-backed config deck manager",
 		Long:  "deckr manages config decks for tools like Neovim, tmux, Ghostty and so on",
 	}
-
-	dataDir := filepath.Join(".", ".deckr-dev")
-
+	dataDir, err := deckrDataDir()
+	if err != nil {
+		return nil, fmt.Errorf("resolve deckr data directory: %w", err)
+	}
 	svc := &tools.Service{
 		Paths:    tools.OSPaths{},
 		Registry: tools.NewFileRegistry(filepath.Join(dataDir, "registry")),
 		Backend:  tools.NewLocalBackend(filepath.Join(dataDir, "backend")),
 	}
-
 	rootCmd.AddCommand(newInitCmd(svc))
 	rootCmd.AddCommand(newCreateCmd(svc))
 	rootCmd.AddCommand(newSwitchCmd(svc))
@@ -33,9 +34,15 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.AddCommand(newListCmd())
 	rootCmd.AddCommand(newPushCmd())
 	rootCmd.AddCommand(newPullCmd())
+	return rootCmd, nil
+}
 
-	return rootCmd
-
+func deckrDataDir() (string, error) {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("get user config directory: %w", err)
+	}
+	return filepath.Join(configDir, "deckr"), nil
 }
 
 func newDeleteCmd() *cobra.Command {
