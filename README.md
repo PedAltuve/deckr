@@ -2,7 +2,7 @@
 
 `deckr` is a Git-backed config deck manager for local tools like Neovim, tmux, Ghostty, and similar apps.
 
-The idea is simple: each tool can have multiple named decks, and each deck represents a different config setup. `deckr` uses Git worktrees by default so each deck can be versioned and backed up without forcing branch checkouts every time you switch.
+The idea is simple: each tool can have multiple named decks, and each deck represents a different config setup. `deckr` first version will use Git worktrees by default so each deck can be versioned and backed up without forcing branch checkouts every time you switch. Right now, all changes are stored in your user path
 
 ## Current command set
 
