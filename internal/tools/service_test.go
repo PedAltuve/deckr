@@ -47,12 +47,17 @@ func (f *fakeRegistry) Get(ctx context.Context, name string) (ManagedTool, error
 }
 
 type fakeBackend struct {
-	repoPath     string
-	initErr      error
-	importErr    error
-	activateErr  error
-	importCalled bool
-	activeCalled bool
+	repoPath        string
+	initErr         error
+	importErr       error
+	activateErr     error
+	importCalled    bool
+	activeCalled    bool
+	createErr       error
+	createWasCalled bool
+	createRepoPath  string
+	createDeckName  string
+	createFromDeck  string
 }
 
 func (f *fakeBackend) InitTool(ctx context.Context, name string) (string, error) {
@@ -65,6 +70,13 @@ func (f *fakeBackend) ImportDeck(ctx context.Context, toolName, repoPath, deckNa
 func (f *fakeBackend) ActivateDeck(ctx context.Context, targetPath, repoPath, deckName string) error {
 	f.activeCalled = true
 	return f.activateErr
+}
+func (f *fakeBackend) CreateDeck(ctx context.Context, repoPath, deckName, fromDeck string) error {
+	f.createWasCalled = true
+	f.createRepoPath = repoPath
+	f.createDeckName = deckName
+	f.createFromDeck = fromDeck
+	return f.createErr
 }
 
 func TestServiceInitSuccess(t *testing.T) {
@@ -192,5 +204,257 @@ func TestServiceCurrentRequiresToolName(t *testing.T) {
 
 	if reg.getWasCalled {
 		t.Fatal("did not expected Get to be called")
+	}
+}
+
+func TestServiceCreateUsesActiveDeckByDefault(t *testing.T) {
+	reg := &fakeRegistry{
+		getResult: ManagedTool{
+			Name:       "nvim",
+			ActiveDeck: "default",
+			RepoPath:   "/repo/nvim",
+		},
+	}
+	backend := &fakeBackend{}
+	svc := &Service{
+		Registry: reg,
+		Backend:  backend,
+	}
+	got, err := svc.Create(context.Background(), CreateInput{
+		Tool:    "nvim",
+		NewDeck: "work",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if !reg.getWasCalled {
+		t.Fatal("expected Get to be called")
+	}
+	if !backend.createWasCalled {
+		t.Fatal("expected CreateDeck to be called")
+	}
+	if backend.createRepoPath != "/repo/nvim" {
+		t.Fatalf("CreateDeck repoPath = %q, want %q", backend.createRepoPath, "/repo/nvim")
+	}
+	if backend.createDeckName != "work" {
+		t.Fatalf("CreateDeck deckName = %q, want %q", backend.createDeckName, "work")
+	}
+	if backend.createFromDeck != "default" {
+		t.Fatalf("CreateDeck fromDeck = %q, want %q", backend.createFromDeck, "default")
+	}
+	if got.Tool != "nvim" {
+		t.Fatalf("Tool = %q, want %q", got.Tool, "nvim")
+	}
+	if got.Deck != "work" {
+		t.Fatalf("Deck = %q, want %q", got.Deck, "work")
+	}
+	if got.SourceDeck != "default" {
+		t.Fatalf("SourceDeck = %q, want %q", got.SourceDeck, "default")
+	}
+	if got.ActiveDeck != "default" {
+		t.Fatalf("ActiveDeck = %q, want %q", got.ActiveDeck, "default")
+	}
+	if reg.saveWasCalled {
+		t.Fatal("did not expect Save to be called")
+	}
+}
+
+func TestServiceCreateUsesExplicitFromDeck(t *testing.T) {
+	reg := &fakeRegistry{
+		getResult: ManagedTool{
+			Name:       "nvim",
+			ActiveDeck: "default",
+			RepoPath:   "/repo/nvim",
+		},
+	}
+	backend := &fakeBackend{}
+	svc := &Service{
+		Registry: reg,
+		Backend:  backend,
+	}
+	got, err := svc.Create(context.Background(), CreateInput{
+		Tool:     "nvim",
+		NewDeck:  "work",
+		FromDeck: "minimal",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if backend.createFromDeck != "minimal" {
+		t.Fatalf("CreateDeck fromDeck = %q, want %q", backend.createFromDeck, "minimal")
+	}
+	if got.SourceDeck != "minimal" {
+		t.Fatalf("SourceDeck = %q, want %q", got.SourceDeck, "minimal")
+	}
+}
+
+func TestServiceCreateEmptyDeck(t *testing.T) {
+	reg := &fakeRegistry{
+		getResult: ManagedTool{
+			Name:       "nvim",
+			ActiveDeck: "default",
+			RepoPath:   "/repo/nvim",
+		},
+	}
+	backend := &fakeBackend{}
+	svc := &Service{
+		Registry: reg,
+		Backend:  backend,
+	}
+	got, err := svc.Create(context.Background(), CreateInput{
+		Tool:    "nvim",
+		NewDeck: "scratch",
+		Empty:   true,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if backend.createFromDeck != "" {
+		t.Fatalf("CreateDeck fromDeck = %q, want empty string", backend.createFromDeck)
+	}
+	if got.SourceDeck != "" {
+		t.Fatalf("SourceDeck = %q, want empty string", got.SourceDeck)
+	}
+}
+
+func TestServiceCreateRejectsFromDeckAndEmptyTogether(t *testing.T) {
+	reg := &fakeRegistry{}
+	backend := &fakeBackend{}
+	svc := &Service{
+		Registry: reg,
+		Backend:  backend,
+	}
+	_, err := svc.Create(context.Background(), CreateInput{
+		Tool:     "nvim",
+		NewDeck:  "work",
+		FromDeck: "default",
+		Empty:    true,
+	})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if reg.getWasCalled {
+		t.Fatal("did not expect Get to be called")
+	}
+	if backend.createWasCalled {
+		t.Fatal("did not expect CreateDeck to be called")
+	}
+}
+
+func TestServiceCreateRejectsSameSourceAndDestinationDeck(t *testing.T) {
+	reg := &fakeRegistry{
+		getResult: ManagedTool{
+			Name:       "nvim",
+			ActiveDeck: "default",
+			RepoPath:   "/repo/nvim",
+		},
+	}
+	backend := &fakeBackend{}
+	svc := &Service{
+		Registry: reg,
+		Backend:  backend,
+	}
+	_, err := svc.Create(context.Background(), CreateInput{
+		Tool:     "nvim",
+		NewDeck:  "default",
+		FromDeck: "default",
+	})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if backend.createWasCalled {
+		t.Fatal("did not expect CreateDeck to be called")
+	}
+}
+
+func TestServiceCreateReturnsRegistryError(t *testing.T) {
+	reg := &fakeRegistry{
+		getErr: fmt.Errorf("boom"),
+	}
+	backend := &fakeBackend{}
+	svc := &Service{
+		Registry: reg,
+		Backend:  backend,
+	}
+	_, err := svc.Create(context.Background(), CreateInput{
+		Tool:    "nvim",
+		NewDeck: "work",
+	})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !reg.getWasCalled {
+		t.Fatal("expected Get to be called")
+	}
+	if backend.createWasCalled {
+		t.Fatal("did not expect CreateDeck to be called")
+	}
+}
+
+func TestServiceCreateReturnsBackendError(t *testing.T) {
+	reg := &fakeRegistry{
+		getResult: ManagedTool{
+			Name:       "nvim",
+			ActiveDeck: "default",
+			RepoPath:   "/repo/nvim",
+		},
+	}
+	backend := &fakeBackend{
+		createErr: fmt.Errorf("boom"),
+	}
+	svc := &Service{
+		Registry: reg,
+		Backend:  backend,
+	}
+	_, err := svc.Create(context.Background(), CreateInput{
+		Tool:    "nvim",
+		NewDeck: "work",
+	})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !backend.createWasCalled {
+		t.Fatal("expected CreateDeck to be called")
+	}
+}
+
+func TestServiceCreateRequiresToolName(t *testing.T) {
+	reg := &fakeRegistry{}
+	backend := &fakeBackend{}
+	svc := &Service{
+		Registry: reg,
+		Backend:  backend,
+	}
+	_, err := svc.Create(context.Background(), CreateInput{
+		NewDeck: "work",
+	})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if reg.getWasCalled {
+		t.Fatal("did not expect Get to be called")
+	}
+	if backend.createWasCalled {
+		t.Fatal("did not expect CreateDeck to be called")
+	}
+}
+func TestServiceCreateRequiresNewDeckName(t *testing.T) {
+	reg := &fakeRegistry{}
+	backend := &fakeBackend{}
+	svc := &Service{
+		Registry: reg,
+		Backend:  backend,
+	}
+	_, err := svc.Create(context.Background(), CreateInput{
+		Tool: "nvim",
+	})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if reg.getWasCalled {
+		t.Fatal("did not expect Get to be called")
+	}
+	if backend.createWasCalled {
+		t.Fatal("did not expect CreateDeck to be called")
 	}
 }
