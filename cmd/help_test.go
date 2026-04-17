@@ -7,7 +7,7 @@ import (
 )
 
 func TestRootHelpShowsCommandSections(t *testing.T) {
-	rootCmd := NewRootCmd()
+	rootCmd, _ := NewRootCmd()
 	var out bytes.Buffer
 	rootCmd.SetOut(&out)
 	rootCmd.SetErr(&out)
@@ -37,7 +37,7 @@ func TestRootHelpShowsCommandSections(t *testing.T) {
 }
 
 func TestInitHelpShowsUsage(t *testing.T) {
-	rootCmd := NewRootCmd()
+	rootCmd, _ := NewRootCmd()
 	var out bytes.Buffer
 	rootCmd.SetOut(&out)
 	rootCmd.SetErr(&out)
