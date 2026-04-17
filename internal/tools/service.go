@@ -13,6 +13,7 @@ type PathResolver interface {
 type Registry interface {
 	Exists(ctx context.Context, name string) (bool, error)
 	Save(ctx context.Context, tool ManagedTool) error
+	Get(ctx context.Context, name string) (ManagedTool, error)
 }
 
 type Backend interface {
@@ -102,4 +103,17 @@ func (s *Service) Init(ctx context.Context, in InitInput) (InitResult, error) {
 		ActiveDeck: tool.ActiveDeck,
 		RepoPath:   tool.RepoPath,
 	}, nil
+}
+
+func (s *Service) Current(ctx context.Context, tool string) (string, error) {
+	if tool == "" {
+		return "", fmt.Errorf("tool name is required")
+	}
+
+	managedTool, err := s.Registry.Get(ctx, tool)
+	if err != nil {
+		return "", err
+	}
+
+	return managedTool.ActiveDeck, nil
 }
