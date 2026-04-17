@@ -27,7 +27,7 @@ func NewRootCmd() *cobra.Command {
 
 	rootCmd.AddCommand(newInitCmd(svc))
 	rootCmd.AddCommand(newCreateCmd(svc))
-	rootCmd.AddCommand(newSwitchCmd())
+	rootCmd.AddCommand(newSwitchCmd(svc))
 	rootCmd.AddCommand(newDeleteCmd())
 	rootCmd.AddCommand(newCurrentCmd(svc))
 	rootCmd.AddCommand(newListCmd())
@@ -36,13 +36,6 @@ func NewRootCmd() *cobra.Command {
 
 	return rootCmd
 
-}
-
-func newSwitchCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "switch <tool> <deck>",
-		Short: "Switch the active deck for a tool",
-	}
 }
 
 func newDeleteCmd() *cobra.Command {

@@ -55,6 +55,16 @@ type CreateResult struct {
 	ActiveDeck string
 }
 
+type SwitchInput struct {
+	Tool   string
+	ToDeck string
+}
+
+type SwitchResult struct {
+	Tool       string
+	ActiveDeck string
+}
+
 type ManagedTool struct {
 	Name       string
 	TargetPath string
@@ -171,5 +181,38 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (CreateResult, err
 		Deck:       in.NewDeck,
 		SourceDeck: sourceDeck,
 		ActiveDeck: tool.ActiveDeck,
+	}, nil
+}
+
+func (s *Service) Switch(ctx context.Context, in SwitchInput) (SwitchResult, error) {
+	if in.Tool == "" {
+		return SwitchResult{}, fmt.Errorf("tool name is required")
+	}
+	if in.ToDeck == "" {
+		return SwitchResult{}, fmt.Errorf("new deck name is required")
+	}
+
+	tool, err := s.Registry.Get(ctx, in.Tool)
+	if err != nil {
+		return SwitchResult{}, fmt.Errorf("get managed tool: %w", err)
+	}
+
+	if err := s.Backend.ActivateDeck(ctx, tool.TargetPath, tool.RepoPath, in.ToDeck); err != nil {
+		return SwitchResult{}, fmt.Errorf("activate %s deck: %w", in.ToDeck, err)
+	}
+
+	previousActiveDeck := tool.ActiveDeck
+	tool.ActiveDeck = in.ToDeck
+
+	if err := s.Registry.Save(ctx, tool); err != nil {
+		if restoreErr := s.Backend.ActivateDeck(ctx, tool.TargetPath, tool.RepoPath, previousActiveDeck); restoreErr != nil {
+			return SwitchResult{}, fmt.Errorf("save failed, rollback failed")
+		}
+		return SwitchResult{}, fmt.Errorf("save %s deck: %w", in.ToDeck, err)
+	}
+
+	return SwitchResult{
+		Tool:       in.Tool,
+		ActiveDeck: in.ToDeck,
 	}, nil
 }
