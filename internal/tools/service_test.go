@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"testing"
 )
 
@@ -25,6 +26,10 @@ type fakeRegistry struct {
 	saveErr       error
 	saved         ManagedTool
 	saveWasCalled bool
+	getWasCalled  bool
+	getResult     ManagedTool
+	getErr        error
+	getName       string
 }
 
 func (f *fakeRegistry) Exists(ctx context.Context, name string) (bool, error) {
@@ -34,6 +39,11 @@ func (f *fakeRegistry) Save(ctx context.Context, tool ManagedTool) error {
 	f.saveWasCalled = true
 	f.saved = tool
 	return f.saveErr
+}
+func (f *fakeRegistry) Get(ctx context.Context, name string) (ManagedTool, error) {
+	f.getWasCalled = true
+	f.getName = name
+	return f.getResult, f.getErr
 }
 
 type fakeBackend struct {
@@ -115,5 +125,72 @@ func TestServiceInitRejectsAlreadyManagedTool(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestServiceCurrentSuccess(t *testing.T) {
+	reg := &fakeRegistry{
+		getResult: ManagedTool{
+			Name:       "nvim",
+			ActiveDeck: "default",
+		},
+	}
+
+	svc := &Service{
+		Registry: reg,
+	}
+
+	got, err := svc.Current(context.Background(), "nvim")
+	if err != nil {
+		t.Fatalf("Current() error = %v", err)
+	}
+
+	if got != "default" {
+		t.Fatalf("Current() = %q, want %q", got, "default")
+	}
+
+	if !reg.getWasCalled {
+		t.Fatal("expected Get to be called")
+	}
+
+	if reg.getName != "nvim" {
+		t.Fatalf("Get() called with %q, want %q", reg.getName, "nvim")
+	}
+}
+
+func TestServiceCurrentReturnsRegistryError(t *testing.T) {
+	reg := &fakeRegistry{
+		getErr: fmt.Errorf("boom"),
+	}
+
+	svc := &Service{
+		Registry: reg,
+	}
+
+	_, err := svc.Current(context.Background(), "nvim")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if !reg.getWasCalled {
+		t.Fatal("expected Get to be called")
+	}
+}
+
+func TestServiceCurrentRequiresToolName(t *testing.T) {
+	reg := &fakeRegistry{}
+
+	svc := &Service{
+		Registry: reg,
+	}
+
+	_, err := svc.Current(context.Background(), "")
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if reg.getWasCalled {
+		t.Fatal("did not expected Get to be called")
 	}
 }
