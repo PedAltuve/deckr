@@ -126,6 +126,61 @@ func (b *LocalBackend) ActivateDeck(ctx context.Context, targetPath, repoPath, d
 	return nil
 }
 
+func (b *LocalBackend) CreateDeck(ctx context.Context, repoPath, deckName, fromDeck string) error {
+	_ = ctx
+
+	if repoPath == "" {
+		return fmt.Errorf("repo path is required")
+	}
+	if deckName == "" {
+		return fmt.Errorf("deck name is required")
+	}
+
+	newDeckPath := filepath.Join(repoPath, "decks", deckName)
+
+	if _, err := os.Stat(newDeckPath); err == nil {
+		return fmt.Errorf("deck already exists: %s", deckName)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("stat new deck path: %w", err)
+	}
+
+	if err := os.MkdirAll(newDeckPath, 0o755); err != nil {
+		return fmt.Errorf("create new deck directory: %w", err)
+	}
+
+	if fromDeck == "" {
+		return nil
+	}
+
+	sourceDeckPath := filepath.Join(repoPath, "decks", fromDeck)
+
+	sourceInfo, err := os.Stat(sourceDeckPath)
+	if err != nil {
+		removeErr := os.RemoveAll(newDeckPath)
+		if removeErr != nil {
+			return fmt.Errorf("stat source deck: %w (cleanup failed: %v)", err, removeErr)
+		}
+		return fmt.Errorf("stat source deck: %w", err)
+	}
+
+	if !sourceInfo.IsDir() {
+		removeErr := os.RemoveAll(newDeckPath)
+		if removeErr != nil {
+			return fmt.Errorf("source deck path must be a directory (cleanup failed: %v", removeErr)
+		}
+		return fmt.Errorf("source and destination deck cannot be the same")
+	}
+
+	if err := copyDir(sourceDeckPath, newDeckPath); err != nil {
+		removeErr := os.RemoveAll(newDeckPath)
+		if removeErr != nil {
+			return fmt.Errorf("copy source deck into new deck: %w (cleanup failed: %v)", err, removeErr)
+		}
+		return fmt.Errorf("copy source deck into new deck: %w", err)
+	}
+	return nil
+}
+
 func copyDir(srcDir, dstDir string) error {
 	entries, err := os.ReadDir(srcDir)
 	if err != nil {
