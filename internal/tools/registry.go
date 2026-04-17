@@ -57,6 +57,23 @@ func (r *FileRegistry) Save(ctx context.Context, tool ManagedTool) error {
 	return nil
 }
 
+func (r *FileRegistry) Get(ctx context.Context, name string) (ManagedTool, error) {
+	path := r.toolFile(name)
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ManagedTool{}, fmt.Errorf("error reading file: %w", err)
+	}
+
+	var m ManagedTool
+
+	if err := json.Unmarshal(data, &m); err != nil {
+		return ManagedTool{}, fmt.Errorf("unmarshal tool metadata: %w", err)
+	}
+
+	return m, nil
+}
+
 func (r *FileRegistry) toolFile(name string) string {
 	return filepath.Join(r.baseDir, name+".json")
 }
