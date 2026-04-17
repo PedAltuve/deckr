@@ -29,7 +29,7 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.AddCommand(newCreateCmd())
 	rootCmd.AddCommand(newSwitchCmd())
 	rootCmd.AddCommand(newDeleteCmd())
-	rootCmd.AddCommand(newCurrentCmd())
+	rootCmd.AddCommand(newCurrentCmd(svc))
 	rootCmd.AddCommand(newListCmd())
 	rootCmd.AddCommand(newPushCmd())
 	rootCmd.AddCommand(newPullCmd())
@@ -56,13 +56,6 @@ func newDeleteCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "delete <tool> <deck>",
 		Short: "Delete a deck",
-	}
-}
-
-func newCurrentCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "current <tool>",
-		Short: "Show the current deck for a tool",
 	}
 }
 
