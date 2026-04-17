@@ -20,6 +20,7 @@ type Backend interface {
 	InitTool(ctx context.Context, name string) (string, error)
 	ImportDeck(ctx context.Context, toolName, repoPath, deckName, sourcePath string) error
 	ActivateDeck(ctx context.Context, targetPath, repoPath, deckName string) error
+	CreateDeck(ctx context.Context, repoPath, deckName, fromDeck string) error
 }
 
 type Service struct {
@@ -38,6 +39,20 @@ type InitResult struct {
 	TargetPath string
 	ActiveDeck string
 	RepoPath   string
+}
+
+type CreateInput struct {
+	Tool     string
+	NewDeck  string
+	FromDeck string
+	Empty    bool
+}
+
+type CreateResult struct {
+	Tool       string
+	Deck       string
+	SourceDeck string
+	ActiveDeck string
 }
 
 type ManagedTool struct {
@@ -116,4 +131,45 @@ func (s *Service) Current(ctx context.Context, tool string) (string, error) {
 	}
 
 	return managedTool.ActiveDeck, nil
+}
+
+func (s *Service) Create(ctx context.Context, in CreateInput) (CreateResult, error) {
+	if in.Tool == "" {
+		return CreateResult{}, fmt.Errorf("tool name is required")
+	}
+	if in.NewDeck == "" {
+		return CreateResult{}, fmt.Errorf("new deck name is required")
+	}
+	if in.Empty && in.FromDeck != "" {
+		return CreateResult{}, fmt.Errorf("fromDeck and empty are mutually exclusive")
+	}
+
+	tool, err := s.Registry.Get(ctx, in.Tool)
+	if err != nil {
+		return CreateResult{}, fmt.Errorf("get managed tool: %w", err)
+	}
+
+	sourceDeck := in.FromDeck
+
+	switch {
+	case in.Empty:
+		sourceDeck = ""
+	case sourceDeck == "":
+		sourceDeck = tool.ActiveDeck
+	}
+
+	if sourceDeck != "" && sourceDeck == in.NewDeck {
+		return CreateResult{}, fmt.Errorf("new deck and source deck cannot be the name")
+	}
+
+	if err := s.Backend.CreateDeck(ctx, tool.RepoPath, in.NewDeck, sourceDeck); err != nil {
+		return CreateResult{}, fmt.Errorf("create deck: %w", err)
+	}
+
+	return CreateResult{
+		Tool:       tool.Name,
+		Deck:       in.NewDeck,
+		SourceDeck: sourceDeck,
+		ActiveDeck: tool.ActiveDeck,
+	}, nil
 }

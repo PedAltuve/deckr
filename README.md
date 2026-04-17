@@ -4,14 +4,6 @@
 
 The idea is simple: each tool can have multiple named decks, and each deck represents a different config setup. `deckr` uses Git worktrees by default so each deck can be versioned and backed up without forcing branch checkouts every time you switch.
 
-## Goals
-
-- Keep config switching simple
-- Stay tool-agnostic
-- Use Git for backup and versioning
-- Make switching feel fast and local
-- Support full config directories, not just single files
-
 ## Current command set
 
 ```bash
